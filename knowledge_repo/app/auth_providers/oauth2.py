@@ -7,7 +7,6 @@ from flask import request, redirect
 from ..models import User
 from ..auth_provider import KnowledgeAuthProvider
 
-
 PRESETS = {
     'oauth2': {},  # allows generic OAuth2 to be configured in server_config.py
     'bitbucket': {
@@ -117,7 +116,8 @@ class OAuth2Provider(KnowledgeAuthProvider):
 
         host = self.app.config['SERVER_NAME'] or 'localhost:7000'
         scheme = self.app.config['PREFERRED_URL_SCHEME'] or 'http'
-        redirect_url = '{}://{}'.format(scheme, host)
+        redirect_host = self.app.config['REDIRECT_HOST']
+        redirect_url = '{}://{}'.format(scheme, redirect_host)
         redirect_path = '/auth/login/{}/authorize'.format(self.name)
         if self.app.config['APPLICATION_ROOT']:
             redirect_path = posixpath.join(self.app.config['APPLICATION_ROOT'], redirect_path)
@@ -160,7 +160,11 @@ class OAuth2Provider(KnowledgeAuthProvider):
             if isinstance(key, list):
                 for _, k in enumerate(key):
                     try:
-                        return extract_from_dict(d, k)
+                        v = extract_from_dict(d, k)
+                        if v is not None:
+                            return v
+                        else:
+                            continue
                     except RuntimeError:
                         pass
             if isinstance(key, str):
@@ -172,7 +176,8 @@ class OAuth2Provider(KnowledgeAuthProvider):
             response_dict = json.loads(response.content)
             identifier = extract_from_dict(response_dict, self.user_info_mapping['identifier'])
             if identifier is None:
-                raise ValueError("identifier '{}' not found in authentication response".format(self.user_info_mapping['identifier']))
+                raise ValueError(
+                    "identifier '{}' not found in authentication response".format(self.user_info_mapping['identifier']))
             user = User(identifier=identifier)
             if 'name' in self.user_info_mapping:
                 user.name = extract_from_dict(response_dict, self.user_info_mapping['name'])
